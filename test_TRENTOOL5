@@ -1,0 +1,102 @@
+% Assuming data is already preprocessed with FieldTrip
+OutputDataPath = 'D:\codigos\lab\';
+InputDataPath = 'PreprocessedData.mat';
+load(InputDataPath);
+
+% Adicionar FieldTrip e TRENTOOL ao caminho
+addpath('D:\codigos\lab\fieldtrip-20240603');
+addpath('D:\codigos\lab\TRENTOOL3-3.4.2');
+ft_defaults;
+
+%% define cfg for TEprepare
+cfgTEP         = [];
+
+% data
+cfgTEP.toi     = [min(preprocessed_data.time{1,1}), max(preprocessed_data.time{1,1})]; % time of interest
+
+cfgTEP.sgncmb  = {'Chan1' 'Chan2'}; % channels to be analyzed
+
+% scanning of interaction delays u 
+cfgTEP.predicttime_u       = 100;
+cfgTEP.predicttimemin_u    = 40; %minimum u to be scanned
+cfgTEP.predicttimemax_u    = 50;
+cfgTEP.predicttimestepsize = 1;
+
+% estimator
+cfgTEP.TEcalctype      = 'VW_ds'; % por algum motivo eu tinha comentado isso
+
+% use ensemble method
+cfgTEP.ensemblemethod  = 'no';
+
+% ACT estimation and constraints on allowed ACT(autocorreation time)
+cfgTEP.actthrvalue     = 40; %threshold for ACT
+cfgTEP.maxlag          = 100; %default value
+cfgTEP.minnrtrials     = 5; 
+
+% optimizing embedding
+cfgTEP.optimizemethod  = 'ragwitz';
+cfgTEP.ragdim          = 2:8;      % define a quantidade de pontos passados usados para prever o ponto futuro
+cfgTEP.ragtaurange     = [0.2 0.4];   % range for tau
+cfgTEP.ragtausteps     = 15;        % steps for ragwitz tau steps
+cfgTEP.repPred         = 100;      % controla quantas vezes a predição será repetida para cada ponto no tempo (antes tava 100)
+
+% kernel-based TE estimation
+cfgTEP.flagNei         = 'Mass';   % type of neighbor search
+cfgTEP.sizeNei         = 4;        % neighbors to analyse IMPORTANTE!!!
+
+% fim da parte TEprepare
+%data_prepared = TEprepare(cfgTEP, preprocessed_data);
+%disp(data_prepared);
+
+%% define cfg for TEsurrogatestats_ensemble.m
+
+cfgTESS         = [];
+
+% use individual dimensions for embedding
+cfgTESS.optdimusage            = 'indivdim'; %usa uma única dimensão 
+
+% surrogate testing
+cfgTESS.tail                    = 1; % default vaue
+cfgTESS.surrogatetype           = 'blockresampling';
+cfgTESS.numpermutation          = 100;
+
+% volume conduction (tabela 6)
+cfgTESS.extracond = 'Faes_Method';
+cfgTESS.shifttest = 'no';
+
+% calcutation of mutual information
+cfgTESS.MICalc = 1;
+
+% results file name
+cfgTESS.fileidout   = strcat(OutputDataPath, 'TEresult');
+
+%% calculation - scan over specified values for u
+
+TGA_results         = InteractionDelayReconstruction_calculate(cfgTEP,cfgTESS, preprocessed_data);
+
+save([OutputDataPath 'TGA_results.mat'], 'TGA_results');
+
+%% optional: perform a post hoc correction for cascade effects and simple common drive effects
+
+cfgGA               = [];
+
+cfgGA.threshold     = 3;
+cfgGA.cmc           = 1;
+
+TGA_results_GA      = TEgraphanalysis(cfgGA, TGA_results);
+
+save([OutputDataPath 'TGA_results_GA.mat'], 'TGA_results_GA');
+
+% plotting 
+
+
+
+%cfg.extrcategtype          = 'trial'
+%cfg.dim                     = [2 1]
+%cfg.shifttesttype           = 'TE>TEshift'
+%cfg.tail                   = 2; % ou 2, dependendo do teste
+%cfg.numpermutation         = 1000; % Número de permutações
+%cfg.fileidout              = 'TEresult'; % Nome do arquivo de saída
+
+
+%% calc
